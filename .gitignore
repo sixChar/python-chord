@@ -1,0 +1,3 @@
+venv/
+.mympy_cache/
+*.swp
