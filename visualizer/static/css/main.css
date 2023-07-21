@@ -1,0 +1,52 @@
+html,body {
+    margin: 0px;
+    padding: 0px;
+    width: 100vw;
+    height: 100vh;
+    background-color: transparent;
+    color: white;
+    overflow: hidden;
+}
+
+#main-canvas {
+    z-index: -1;
+    overflow: hidden;
+    position: absolute;
+    background: black;
+}
+
+#center {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    align-text:center;
+}
+
+#btn-container {
+    display: flex;
+    margin: auto;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 1vh;
+
+    
+}
+
+.minimal-btn {
+    color: white;
+    background-color: black;
+    font-family: monospace;
+    border: double 3px white;
+    border-radius: 1vw;
+}
+
+.minimal-btn:hover {
+    background-color: #424242;
+}
+
+.minimal-btn:active {
+    border: solid 1px white;
+    padding: 3px 8px 3px 8px;
+}
+

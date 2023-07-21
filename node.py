@@ -36,26 +36,26 @@ MAX_NUM_SUCCESSORS: int = 32
 
 # Maximum number of entries in the finger table
 MAX_NUM_FINGER: int = 256
-# Finger table for faster lookup e.g. [node responsible for my_id + 1, ..., my_id + 2^i ]
-finger_table: list[tuple[bytes, tuple[str, int]]] = []
+# Finger table for faster lookup e.g. [node responsible for _my_id + 1, ..., _my_id + 2^i ]
+_finger_table: list[tuple[bytes, tuple[str, int]]] = []
 # Indec of next entry in finger table to look up
-next_fix: int = 0
+_next_fix: int = 0
 
 # List of immediate successors (e.g. [successor, successor's successor, ...])
-succ_list: list[tuple[bytes, tuple[str, int]]] = []
+_succ_list: list[tuple[bytes, tuple[str, int]]] = []
 # Id of this node's predecessor
-pred_id: Optional[bytes] = None
+_pred_id: Optional[bytes] = None
 # (host, port) of predecessor
-pred_loc: Optional[tuple[str, int]] = None
+_pred_loc: Optional[tuple[str, int]] = None
 
 # We're casting None to other types here because we know these should be set at the start and this way the type checker doesn't complain
 # for every use of the variable that isn't explicitly cast.
 # Ip address that this node reads requests from
-my_host: str = cast(str, None)
+_my_host: str = cast(str, None)
 # Port that this node reads requests from
-my_port: int = cast(int, None)
+_my_port: int = cast(int, None)
 # My node id
-my_id: bytes = cast(bytes, None)
+_my_id: bytes = cast(bytes, None)
 
 '''
   Codes for the different requests the node can receive
@@ -121,11 +121,11 @@ def add_len(msg: bytes) -> bytes:
     Find the node who's id is the first in the ring that comes after find_id.
 '''
 async def find_successor(find_id: bytes) -> tuple[bytes, tuple[str, int]]:
-    global succ_list
+    global _succ_list, _finger_table, my_list, _my_host, _my_id
     # Try to get the successor's successor. If this fails then delete it and go to
     # next in successor list
-    while len(succ_list) > 0:
-        curr_id, (curr_host, curr_port) = succ_list[0]
+    while len(_succ_list) > 0:
+        curr_id, (curr_host, curr_port) = _succ_list[0]
         try:
             next_node = await wait_for(
                     request_successors(curr_host, curr_port), 
@@ -133,20 +133,20 @@ async def find_successor(find_id: bytes) -> tuple[bytes, tuple[str, int]]:
             )
             break
         except Exception as e:
-            succ_list = succ_list[1:]
-            if len(finger_table) > 0:
-                finger_table[0] = succ_list[0]
+            _succ_list = _succ_list[1:]
+            if len(_finger_table) > 0:
+                _finger_table[0] = _succ_list[0]
     # If no more successors alive, then make this node it's own successor and return this node since it's now the only node in the ring.
-    if len(succ_list) == 0:
-        succ_list = [(my_id, (my_host, my_port))]
-        return (my_id, (my_host, my_port))
+    if len(_succ_list) == 0:
+        _succ_list = [(_my_id, (_my_host, _my_port))]
+        return (_my_id, (_my_host, _my_port))
 
     if next_node != None:
         # Next node should be a list of length 1 so we let the type checker know it's 
         # not None and take it out of the list.
         next_host, next_port = cast(list[tuple[str, int]], next_node)[0]  
     else:
-        return (curr_id, (my_host, my_port))
+        return (curr_id, (_my_host, _my_port))
 
     while True:
         if next_host == None or next_port == None:
@@ -204,12 +204,13 @@ async def request_closest_preceding(find_id: bytes, host: str, port:int) -> tupl
     a transmitted id while still being before it in the ring.
 '''
 async def handle_closest_preceding(reader: StreamReader, writer: StreamWriter) -> None:
+    global _finger_table
     print("Request for closest preceding.")
     find_id = await read_msg(reader)
     # Search the finger table for the largest node that is between this node and
-    # find_id. That is: my_id < node_id < find_id (modulo)
-    for n_id, n_loc in reversed(finger_table):
-        if id_between(n_id, my_id, find_id):
+    # find_id. That is: _my_id < node_id < find_id (modulo)
+    for n_id, n_loc in reversed(_finger_table):
+        if id_between(n_id, _my_id, find_id):
             message = add_len(json.dumps(n_loc).encode())
             writer.write(message)
             await writer.drain()
@@ -217,7 +218,7 @@ async def handle_closest_preceding(reader: StreamReader, writer: StreamWriter) -
             return
     # Send back the location. Id is not included since that can easily be calculated by
     # requester.
-    message = add_len(json.dumps((my_host, my_port)).encode())
+    message = add_len(json.dumps((_my_host, _my_port)).encode())
     writer.write(message)
     await writer.drain()
     writer.close()
@@ -228,14 +229,14 @@ async def handle_closest_preceding(reader: StreamReader, writer: StreamWriter) -
     Join the network that the node at host:port is a part of.
 '''
 async def join(host: str, port: int):
-    global succ_list, finger_table
-    succ_list.append((hash(host, port), (host, port)))
+    global _succ_list, _finger_table
+    _succ_list.append((hash(host, port), (host, port)))
     # Repeatedly try to join until success
     while True:
         print(f"Attempting to join at {host}:{port} ...  ", end="")
         try:
-            succ_list[0] = await find_successor(my_id)
-            finger_table.append(succ_list[-1])
+            _succ_list[0] = await find_successor(_my_id)
+            _finger_table.append(_succ_list[-1])
             print("Success!")
             break
         except Exception as e:
@@ -250,12 +251,12 @@ async def join(host: str, port: int):
     know about itself.
 '''
 async def stabilize() -> None:
-    global succ_list, finger_table
-    while len(succ_list) > 0:
+    global _succ_list, _finger_table, _my_id, _my_host, _my_port
+    while len(_succ_list) > 0:
         # Try to stabilize with successor. If it fails delete and move onto next in 
         # successor list.
         try:
-            succ_id, succ_loc = succ_list[0]
+            succ_id, succ_loc = _succ_list[0]
             x_host, x_port = await wait_for(
                     request_predecessor(*succ_loc),
                     REQUEST_TIMEOUT
@@ -270,21 +271,21 @@ async def stabilize() -> None:
                 x_host, x_port = cast(str, x_host), cast(int, x_port)
                 x_id = hash(x_host, x_port)
                 # If successor's predecessor (x) is after us update them to be our successor
-                if id_between(x_id, my_id, succ_id):
-                    succ_list[0] = (x_id, (x_host, x_port))
-                    if len(finger_table) > 0:
-                        finger_table[0] = (succ_id, succ_loc)
+                if id_between(x_id, _my_id, succ_id):
+                    _succ_list[0] = (x_id, (x_host, x_port))
+                    if len(_finger_table) > 0:
+                        _finger_table[0] = (succ_id, succ_loc)
                     else:
-                        finger_table.append((succ_id, succ_loc))
+                        _finger_table.append((succ_id, succ_loc))
                 # If we are a closer successor than x let our successor know about us.
-                elif x_id != my_id:
+                elif x_id != _my_id:
                     await wait_for(
                             request_notify(*succ_loc),
                             REQUEST_TIMEOUT
                     )
             # Get our successor's successor list (succ's list)
             succs_succ_addrs =  await wait_for(
-                    request_successors(*succ_list[0][1], 0),
+                    request_successors(*_succ_list[0][1], 0),
                     REQUEST_TIMEOUT
             )
             # If succ's list is not None update our list to be [successor, succ's list]
@@ -293,62 +294,62 @@ async def stabilize() -> None:
             if succs_succ_addrs != None:
                 succs_succ_addrs = cast(list[tuple[str, int]], succs_succ_addrs)
                 succs_succ_list = list(map(lambda x: (hash(*x), x), succs_succ_addrs))
-                succ_list = [succ_list[0]] + succs_succ_list[:MAX_NUM_SUCCESSORS-1]
+                _succ_list = [_succ_list[0]] + succs_succ_list[:MAX_NUM_SUCCESSORS-1]
             break
         except Exception as e:
-            print(f"Error stabilizing with successor:{succ_list[0][1]} : {e}\nSkipping to next in successor list.")
-            if len(finger_table) > 0 and len(succ_list) > 0:
-                if finger_table[0][0] == succ_list[0][0]:
+            print(f"Error stabilizing with successor:{_succ_list[0][1]} : {e}\nSkipping to next in successor list.")
+            if len(_finger_table) > 0 and len(_succ_list) > 0:
+                if _finger_table[0][0] == _succ_list[0][0]:
                     # Remove immediate successor from finger table if it failed
-                    finger_table = finger_table[1:]
-            if len(succ_list) > 0:
-                succ_list = succ_list[1:]
+                    _finger_table = _finger_table[1:]
+            if len(_succ_list) > 0:
+                _succ_list = _succ_list[1:]
             else:
-                succ_list = [(my_id, (my_host, my_port))]
+                _succ_list = [(_my_id, (_my_host, _my_port))]
                 break
-    print(succ_list[0], len(finger_table))
+    print(_succ_list[0], len(_finger_table))
 
 
 '''
     Update the finger table to reflect the current state of the network. 
 '''
 async def fix_fingers():
-    global next_fix, finger_table, succ_list
-    if len(finger_table) > 0 or len(succ_list) > 0:
+    global next_fix, _finger_table, _succ_list
+    if len(_finger_table) > 0 or len(_succ_list) > 0:
         try:
             next_fix = next_fix + 1
             if next_fix >= MAX_NUM_FINGER:
                 # Reset to start
                 next_fix = 0
-            elif next_fix >= len(finger_table):
-                test_id, test_loc = await find_successor(add_to_id(my_id, 2 ** next_fix))
+            elif next_fix >= len(_finger_table):
+                test_id, test_loc = await find_successor(add_to_id(_my_id, 2 ** next_fix))
                 # If the finger table is empty or the node that would be the next added to the finger table
                 # is between the last finger table entry and this node add a new finger table entry
-                if len(finger_table) == 0 or id_between(test_id, finger_table[-1][0], my_id):
-                    finger_table.append((test_id, test_loc))
+                if len(_finger_table) == 0 or id_between(test_id, _finger_table[-1][0], _my_id):
+                    _finger_table.append((test_id, test_loc))
                 else:
                     # Reset to start
                     next_fix = 0
             else:
-                finger_table[next_fix] = await find_successor(add_to_id(my_id, 2 ** next_fix))
+                _finger_table[next_fix] = await find_successor(add_to_id(_my_id, 2 ** next_fix))
         except Exception as e:
             # If failed to contact successor, replace successor with next in list
-            if e.args[0][0] == succ_list[0][1]:
-                succ_list = succ_list[1:]
-                finger_table[0] = succ_list[0]
+            if e.args[0][0] == _succ_list[0][1]:
+                _succ_list = _succ_list[1:]
+                _finger_table[0] = _succ_list[0]
 
 
 '''
     Check if predecessor is alive and if not forget it.
 '''
 async def check_predecessor():
-    global pred_id, pred_loc
-    if pred_id != None and pred_loc != None:
+    global _pred_id, _pred_loc
+    if _pred_id != None and _pred_loc != None:
         try:
-            resp = (await wait_for(request_ping(*pred_loc), REQUEST_TIMEOUT)).decode()
+            resp = (await wait_for(request_ping(*_pred_loc), REQUEST_TIMEOUT)).decode()
             print(f"Response to ping: {resp}")
         except Exception as e:
-            pred_id, pred_loc = None, None
+            _pred_id, _pred_loc = None, None
 
 
 '''
@@ -387,6 +388,7 @@ async def handle_ping(reader: StreamReader, writer: StreamWriter):
     this node is it's immediate predecessor in the ring
 '''
 async def request_notify(host: str, port: int) -> None:
+    global _my_host, _my_port
     reader: StreamReader
     writer: StreamWriter
     try:
@@ -396,7 +398,7 @@ async def request_notify(host: str, port: int) -> None:
         raise e        
 
     message = Request.NOTIFY.to_bytes(1, "big") + \
-                add_len(json.dumps((my_host, my_port)).encode())
+                add_len(json.dumps((_my_host, _my_port)).encode())
     writer.write(message)
     await writer.drain()
 
@@ -409,7 +411,7 @@ async def request_notify(host: str, port: int) -> None:
 '''
 async def handle_notify(reader: StreamReader, writer: StreamWriter) -> None:
     print("Request for notify.")
-    global pred_id, pred_loc
+    global _pred_id, _pred_loc
     peername = writer.get_extra_info("peername")
     cand_loc = tuple(json.loads((await read_msg(reader)).decode()))
 
@@ -425,15 +427,15 @@ async def handle_notify(reader: StreamReader, writer: StreamWriter) -> None:
     if peername[0] != cand_loc[0]:
         # Check that cand ip matches sender (i.e. notify is sent from the notifier)
         writer.write(add_len(b"\x01refused: ip doesn't match sender"))
-    elif pred_id == None or pred_loc == None:
+    elif _pred_id == None or _pred_loc == None:
         # If no predecessor then cand is accepted
-        pred_id, pred_loc = cand_id, cand_loc
+        _pred_id, _pred_loc = cand_id, cand_loc
         writer.write(add_len(b"\x00accepted"))
     else:
-        pred_id, pred_loc = cast(bytes, pred_id), cast(tuple[str, int], pred_loc)
-        if id_between(cand_id, pred_id, my_id):
+        _pred_id, _pred_loc = cast(bytes, _pred_id), cast(tuple[str, int], _pred_loc)
+        if id_between(cand_id, _pred_id, _my_id):
             # If the notifier is between pred and this node, it replaces pred
-            pred_id, pred_loc = cand_id, cand_loc
+            _pred_id, _pred_loc = cand_id, cand_loc
             writer.write(add_len(b"\x00accepted"))
         else:
             writer.write(add_len(b"\x01refused: is not between current predecessor and self"))
@@ -468,8 +470,9 @@ async def request_predecessor(host: str, port: int) -> tuple[Optional[str], Opti
 '''
 async def handle_request_predecessor(reader: StreamReader, writer: StreamWriter) -> None:
     print("Request for predecessor")
-    if pred_id != None:
-        to_send = pred_loc
+    global _pred_id, _pred_loc
+    if _pred_id != None:
+        to_send = _pred_loc
     else:
         to_send = None
     writer.write(add_len(json.dumps(to_send).encode()))
@@ -507,14 +510,14 @@ async def request_successors(host: str, port: int, n: int = 1) -> Optional[list[
     transmitted integer. If n == 0 then send the whole list back.
 '''
 async def handle_request_successors(reader: StreamReader, writer: StreamWriter) -> None:
-    global succ_list
+    global _succ_list
     n = int.from_bytes(await reader.read(1), 'big')
-    if n > len(succ_list):
-        n = len(succ_list)
+    if n > len(_succ_list):
+        n = len(_succ_list)
     elif n == 0:
-        n = len(succ_list)
+        n = len(_succ_list)
     # Only send the location of the successors. The id's can be calculated by the requester
-    to_send = list(map(lambda x: x[1], succ_list[:n]))
+    to_send = list(map(lambda x: x[1], _succ_list[:n]))
     message = add_len(json.dumps(to_send).encode())
     writer.write(message)
     await writer.drain()
@@ -560,20 +563,21 @@ async def run_node(
             port: int = 0, 
             known: Optional[tuple[str, int]]=None
         ) -> None:
-    global my_host, my_port, my_id, succ_list
+    global _my_host, _my_port, _my_id, _succ_list
 
     server: asyncio.Server = await asyncio.start_server(handle_request, host=host, port=port)
-    my_host, my_port = server.sockets[0].getsockname()
-    my_id = sha256(json.dumps((my_host,my_port)).encode()).digest()
+    _my_host, _my_port = server.sockets[0].getsockname()
+    _my_id = sha256(json.dumps((_my_host,_my_port)).encode()).digest()
     addrs: str = ', '.join(str(sock.getsockname()) for sock in server.sockets)
     print(f'Serving on {addrs}')
+
 
     # If no node is known then we are starting a new ring and this node is it's own
     # successor
     if known is not None:
         await join(*known)
     else:
-        succ_list = [(my_id, (my_host, my_port))]
+        _succ_list = [(_my_id, (_my_host, _my_port))]
 
     async with server:
         await asyncio.gather(

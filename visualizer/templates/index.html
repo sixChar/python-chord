@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href={{ url_for('static', filename='css/main.css') }}>
+        <script src={{ url_for('static', filename='scripts/main.js') }} defer></script>
+    </head>
+    <body>
+        <canvas id='main-canvas'></canvas>
+        <div id='center'>
+            <div id='btn-container'>
+                <button id='add-node-btn' class='minimal-btn'>Add Node</button>
+                <button id='remove-node-btn' class='minimal-btn'>Remove Node</button>
+                <button id='info-btn' class='minimal-btn'>Info</button>
+            </div>
+        </div>
+    </body>
+</html>
