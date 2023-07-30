@@ -25,6 +25,7 @@ def cleanup():
 def root():
     return render_template("index.html")
 
+
 @app.route('/add')
 def add_node():
     global nodes
@@ -47,6 +48,7 @@ def add_node():
     nodes.append({'proc':node_proc, 'loc':(host,port)})
     return jsonify({'node':nodes[-1]['loc']})
 
+
 @app.route('/remove')
 def remove_node():
     global nodes
@@ -58,9 +60,11 @@ def remove_node():
     else:
         return jsonify({'node': None})
 
+
 @app.route('/node-count')
 def node_count():
     return f"{len(nodes)}"
+
 
 @app.route('/node-info')
 def node_info():

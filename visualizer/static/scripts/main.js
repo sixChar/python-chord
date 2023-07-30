@@ -1,23 +1,23 @@
 
 // How many times do we see a node having a predecessor before saying it is no longer recent
-const RECENT_THRESHOLD = 5;
+const RECENT_THRESHOLD = 3;
 
 // State of the network
 const state = {
     nodes:[],
-    highlighted: null,
+    highlighted: new Map(),
     recentlyAdded: new Map(),
 }
-fetch('/node-count').then(data => data.text()).then(text => state.nodes.length = text)
+
 
 const resizeCanvas = function() {
     const canvas = document.getElementById('main-canvas');
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    drawCanvas();
+    draw();
 }
 
-const drawCanvas = function() {
+const draw = function() {
     const canvas = document.getElementById('main-canvas');
     const ctx = canvas.getContext('2d');
 
@@ -31,11 +31,9 @@ const drawCanvas = function() {
 
     // Draw circle
     
-    circleRadius = 1;
     circleX = 0;
     circleY = 0;
     ctx.beginPath()
-    //ctx.arc(circleX, circleY, circleRadius, 0, 2*Math.PI);
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 0.005;
     ctx.stroke();
@@ -55,8 +53,8 @@ const drawCanvas = function() {
     let nodeX, nodeY, angle, nodeLoc, locStr;
     for (let i=0; i < state.nodes.length; i++) {
         angle = 2 * Math.PI * (i / state.nodes.length) - Math.PI/ 2;
-        nodeX = circleRadius * Math.cos(angle) + circleX;
-        nodeY = circleRadius * Math.sin(angle) + circleY;
+        nodeX = Math.cos(angle) + circleX;
+        nodeY = Math.sin(angle) + circleY;
         state.nodes[i].nodeX = nodeX;
         state.nodes[i].nodeY = nodeY;
         state.nodes[i].angle = angle;
@@ -83,6 +81,7 @@ const drawCanvas = function() {
     }
 
 
+    /*
     let recentCount, recentStr;
     // Typically the last node added will be the one highlighted and that will be the last more often than the first. Hence looping from the last to first.
     for (let i=state.nodes.length - 1; i >= 0; i--) {
@@ -119,29 +118,110 @@ const drawCanvas = function() {
         ctx.fillText(locStr, nodeX * scale * 1.1, nodeY * scale * 1.075);
         ctx.scale(scale, scale);
     }
+    */
     
 
     ctx.restore();
+    drawNodes();
 }
 
 
-const addNode = function(e) {
-    fetch('/add').then(data => data.json()).then(jsn => {
-        console.log(jsn);
-        state.recentlyAdded.set(jsn.node[0] + ':' + jsn.node[1], RECENT_THRESHOLD);
-    })
-    drawCanvas();
-}
+const drawNodes = function() {
+    const container = document.getElementById('node-container');
+    const newContainer = document.createElement('div');
 
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const radius = 2 * Math.min(width,height) / 3 / 2;
+    
+    const nodeSize = Math.floor(0.025 * Math.min(width, height));
+    const labelWidth = Math.floor(0.025 * Math.min(width, height));
+    
+    newContainer.id = 'node-container';
+    newContainer.className = 'node-container';
 
-const removeNode = function(e) {
-    fetch('/remove').then(data => data.json()).then(jsn => {
-        console.log(jsn);
-        if (jsn.node) {
-            state.recentlyAdded.delete(jsn.node[0] + ':' + jsn.node[1]);
+    for (let i=0; i < state.nodes.length; i++) {
+        const node = state.nodes[i];
+        const leftOff = node.nodeX * radius;
+        const topOff = node.nodeY * radius;
+        const nodeLeft = Math.floor(leftOff + width / 2 - nodeSize/2);
+        const nodeTop = Math.floor(topOff + height / 2 - nodeSize/2);
+        const labelLeft = Math.floor(1.15 * leftOff + width/2 - labelWidth/2);
+        const labelTop = Math.floor(1.15 * topOff + height/2);
+
+        const nodeElem = document.createElement('div');
+        nodeElem.className = 'node-elem';
+        nodeElem.style.setProperty('left', nodeLeft + 'px');
+        nodeElem.style.setProperty('top', nodeTop + 'px');
+        nodeElem.style.setProperty('width', nodeSize + 'px');
+        nodeElem.style.setProperty('height', nodeSize + 'px');
+        let nodeColor = 'white';
+        if (!node.isSuccessor) {
+            nodeColor =  'gray';
         }
-    });
-    drawCanvas();
+        const locStr = node.loc[0] + ':' + node.loc[1];
+
+        const recentCount = state.recentlyAdded.get(locStr); 
+        if (state.highlighted.has(locStr)) {
+            nodeColor = 'lightgreen';
+        }
+        if (!recentCount || recentCount <= 0) {
+            state.recentlyAdded.delete(locStr);
+        }
+        else {
+            nodeElem.style.setProperty('border', '5px solid yellow');
+            if (node.isSuccessor) {
+                state.recentlyAdded.set(locStr, recentCount - 1);
+            }
+        }
+
+        nodeElem.onclick = (e) => {
+            if (state.highlighted.has(locStr)) {
+                state.highlighted.delete(locStr);
+                nodeElem.style.setProperty('background', nodeColor);
+            }
+            else {
+                state.highlighted.set(locStr, 1);
+                nodeElem.style.setProperty('background', 'lightgreen');
+            }
+        };
+        nodeElem.style.setProperty('background', nodeColor);
+
+        const nodeLabel = document.createElement('div');
+        nodeLabel.textContent = node.loc[1];
+        nodeLabel.className = 'node-label';
+        nodeLabel.style.setProperty('position', 'absolute');
+        nodeLabel.style.setProperty('left', labelLeft + 'px');
+        nodeLabel.style.setProperty('top', labelTop + 'px');
+        nodeLabel.style.setProperty('width', labelWidth + 'px');
+
+
+        newContainer.appendChild(nodeElem);
+        newContainer.appendChild(nodeLabel);
+    }
+
+    container.parentNode.replaceChild(newContainer, container);
+}
+
+
+
+const addNode = async function(e) {
+    const data = await fetch('/add');
+    const jsn = await data.json();
+    console.log(jsn);
+    state.recentlyAdded.set(jsn.node[0] + ':' + jsn.node[1], RECENT_THRESHOLD);
+    nodeInfo();    
+}
+
+
+const removeNode = async function(e) {
+    const data = await fetch('/remove')
+    const jsn = await data.json()
+    console.log(jsn);
+    if (jsn.node) {
+        state.recentlyAdded.delete(jsn.node[0] + ':' + jsn.node[1]);
+    }
+    nodeInfo();
 }
 
 
@@ -154,7 +234,7 @@ const nodeInfo = async function(e) {
     
     let matched, temp;
 
-    // First node is always either some node's successor or it's on successor
+    // First node is always either some node's successor or it's own successor
     if (nodes.length > 0) {
         nodes[0].isSuccessor = true;
     }
@@ -171,9 +251,10 @@ const nodeInfo = async function(e) {
         }
     }
     
-    
-    state.nodes = nodes;
-    drawCanvas();
+    if (true) {
+        state.nodes = nodes;
+        draw();
+    }
 }
 
 

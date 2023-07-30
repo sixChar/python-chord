@@ -18,11 +18,11 @@ CONNECTION_TIMEOUT: float = 5.0
 # Timeout before giving up on a request_**** method
 REQUEST_TIMEOUT: float = 10.0
 # Interval between running stabilize method
-STABILIZE_INTERVAL: float = 3.0
+STABILIZE_INTERVAL: float = 1.0
 # Interval between running fix_fingers method
-FIX_FINGERS_INTERVAL: float = 3.0
+FIX_FINGERS_INTERVAL: float = 1.0
 # Interval between checking if predecessor is still alive
-CHECK_PREDECESSOR_INTERVAL: float = 3.0
+CHECK_PREDECESSOR_INTERVAL: float = 1.0
 # Interval between retrying to join the network if an attempt to join fails
 RETRY_JOIN_INTERVAL: float = 5.0
 
@@ -548,7 +548,6 @@ async def handle_request(reader: StreamReader, writer: StreamWriter) -> None:
     Repeatedly run a function with a given interval.
 '''
 async def repeat(func, interval=5):
-    await asyncio.sleep(interval)
     while True:
         await asyncio.sleep(interval)
         await func()
