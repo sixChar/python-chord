@@ -44,4 +44,6 @@ Then start the server with:
 ```
 flask run
 ```
+Then open a browser and go to "localhost:5000".
 
+NOTE: There's a bug where adding a few nodes and then leaving it for a while cause nodes to fail. This doesn't happen when running the nodes on their own so I think it's something to do with Popen not playing nice with the resut of the program. If I had to guess it would have something to do with multiple processes trying to print at the same time but that's a bit of a wild guess.
