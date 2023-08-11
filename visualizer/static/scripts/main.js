@@ -140,15 +140,23 @@ const drawNodes = function() {
     newContainer.id = 'node-container';
     newContainer.className = 'node-container';
 
+    let node;
+    let leftOff;
+    let topOff;
+    let nodeLeft;
+    let nodeTop;
+    let labelLeft;
+    let labelTop;
     for (let i=0; i < state.nodes.length; i++) {
-        const node = state.nodes[i];
-        const leftOff = node.nodeX * radius;
-        const topOff = node.nodeY * radius;
-        const nodeLeft = Math.floor(leftOff + width / 2 - nodeSize/2);
-        const nodeTop = Math.floor(topOff + height / 2 - nodeSize/2);
-        const labelLeft = Math.floor(1.15 * leftOff + width/2 - labelWidth/2);
-        const labelTop = Math.floor(1.15 * topOff + height/2);
+        node = state.nodes[i];
+        leftOff = node.nodeX * radius;
+        topOff = node.nodeY * radius;
+        nodeLeft = Math.floor(leftOff + width / 2 - nodeSize/2);
+        nodeTop = Math.floor(topOff + height / 2 - nodeSize/2);
+        labelLeft = Math.floor(1.15 * leftOff + width/2 - labelWidth/2);
+        labelTop = Math.floor(1.15 * topOff + height/2);
 
+        // Set style of node
         const nodeElem = document.createElement('div');
         nodeElem.className = 'node-elem';
         nodeElem.style.setProperty('left', nodeLeft + 'px');
@@ -160,6 +168,20 @@ const drawNodes = function() {
             nodeColor =  'gray';
         }
         const locStr = node.loc[0] + ':' + node.loc[1];
+
+        // Toggle highlight on node click. Immediatly change color for sake of
+        // feeling more interactive.
+        nodeElem.onclick = (e) => {
+            console.log("click");
+            if (state.highlighted.has(locStr)) {
+                state.highlighted.delete(locStr);
+                nodeElem.style.setProperty('background', 'white');
+            }
+            else {
+                state.highlighted.set(locStr, 1);
+                nodeElem.style.setProperty('background', 'lightgreen');
+            }
+        };
 
         const recentCount = state.recentlyAdded.get(locStr); 
         if (state.highlighted.has(locStr)) {
@@ -175,16 +197,6 @@ const drawNodes = function() {
             }
         }
 
-        nodeElem.onclick = (e) => {
-            if (state.highlighted.has(locStr)) {
-                state.highlighted.delete(locStr);
-                nodeElem.style.setProperty('background', nodeColor);
-            }
-            else {
-                state.highlighted.set(locStr, 1);
-                nodeElem.style.setProperty('background', 'lightgreen');
-            }
-        };
         nodeElem.style.setProperty('background', nodeColor);
 
         const nodeLabel = document.createElement('div');

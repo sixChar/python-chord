@@ -16,9 +16,16 @@ nodes = []
 
 def cleanup():
     for node in nodes:
-        node.send_signal(signal.SIGINT)
+        node['proc'].send_signal(signal.SIGINT)
     for node in nodes:
+        dump_log(node['proc'])
         node.wait()
+
+
+def dump_log(proc):
+    with open(f"logs/log-{len(os.listdir('logs'))}.txt", "w") as fp:
+        for line in proc.stderr:
+            fp.write(line);
 
 
 @app.route('/', methods=["GET"])
@@ -38,6 +45,7 @@ def add_node():
     node_proc = subprocess.Popen(
             [sys.executable, '-u', '../node.py'] + args, 
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             bufsize=1
     )
@@ -70,13 +78,26 @@ def node_count():
 def node_info():
     global nodes
     ret = {'nodes':[]}
+    to_remove = []
     for i,node in enumerate(nodes):
-        successors = asyncio.run(request_successors(*node['loc']))
-        ret['nodes'].append({
-            'pid': node['proc'].pid,
-            'loc': node['loc'],
-            'successors': list(dict.fromkeys(successors))
-        })
+        try:
+            successors = asyncio.run(
+                    asyncio.wait_for(
+                        request_successors(*node['loc']), 5))
+            ret['nodes'].append({
+                'pid': node['proc'].pid,
+                'loc': node['loc'],
+                'successors': list(dict.fromkeys(successors))
+            })
+        except Exception as e:
+            to_remove.append(i)
+            print(e)
+    for i in to_remove:
+        nodes[i]['proc'].send_signal(signal.SIGINT)
+        dump_log(nodes[i]['proc'])
+        nodes[i]['proc'].wait()
+        del nodes[i]
+              
     return jsonify(ret)
 
 
