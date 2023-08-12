@@ -2,7 +2,7 @@
 // How many times do we see a node having a predecessor before saying it is no longer recent
 const RECENT_THRESHOLD = 3;
 
-// State of the network
+// State of the network (global to avoid garbage collector)
 const state = {
     nodes:[],
     highlighted: new Map(),
@@ -79,47 +79,6 @@ const draw = function() {
             ctx.stroke();
         }
     }
-
-
-    /*
-    let recentCount, recentStr;
-    // Typically the last node added will be the one highlighted and that will be the last more often than the first. Hence looping from the last to first.
-    for (let i=state.nodes.length - 1; i >= 0; i--) {
-        nodeLoc = state.nodes[i].loc;
-        nodeX = state.nodes[i].nodeX;
-        nodeY = state.nodes[i].nodeY;
-        if (state.highlighted && state.highlighted[0] == nodeLoc[0] && state.highlighted[1] == nodeLoc[1]) {
-            ctx.fillStyle = 'lightgreen'; 
-            ctx.fillRect(nodeX - nodeWidth/2, nodeY-nodeHeight/2, nodeWidth, nodeHeight);
-
-        } else if (!state.nodes[i].isSuccessor) {
-            ctx.fillStyle = 'gray'; 
-            ctx.fillRect(nodeX - nodeWidth/2, nodeY-nodeHeight/2, nodeWidth, nodeHeight);
-        } else if (state.recentlyAdded.has(nodeLoc[0] + ':' + nodeLoc[1])) {
-            recentStr = nodeLoc[0] + ':' + nodeLoc[1];
-            recentCount = state.recentlyAdded.get(recentStr);
-            ctx.fillStyle = 'yellow'
-            ctx.fillRect(nodeX - nodeWidth/2, nodeY-nodeHeight/2, nodeWidth, nodeHeight);
-            if (recentCount <= 0) {
-                state.recentlyAdded.delete(recentStr);
-            }
-            else {
-                state.recentlyAdded.set(recentStr, recentCount - 1);
-            }
-
-        } else {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(nodeX - nodeWidth/2, nodeY-nodeHeight/2, nodeWidth, nodeHeight);
-        }
-
-        ctx.fillStyle = 'white';
-        locStr = nodeLoc[1];
-        ctx.scale(1/scale, 1/scale);
-        ctx.fillText(locStr, nodeX * scale * 1.1, nodeY * scale * 1.075);
-        ctx.scale(scale, scale);
-    }
-    */
-    
 
     ctx.restore();
     drawNodes();
@@ -281,9 +240,6 @@ window.onload = function() {
 
     const removeNodeBtn = document.getElementById('remove-node-btn');
     removeNodeBtn.onclick = removeNode;
-
-    const infoBtn = document.getElementById('info-btn');
-    infoBtn.onclick = () => nodeInfo();
 
     setInterval(() => {document.hasFocus() && nodeInfo()}, 1000);
 }
