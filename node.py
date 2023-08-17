@@ -228,7 +228,6 @@ async def handle_closest_preceding(reader: StreamReader, writer: StreamWriter) -
                 break
     # Send back the location. Id is not included since that can easily be calculated by
     # requester.
-    message = add_len(json.dumps((_my_host, _my_port)).encode())
     writer.write(message)
     await writer.drain()
     writer.close()
