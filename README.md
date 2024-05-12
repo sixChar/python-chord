@@ -46,4 +46,14 @@ flask run
 ```
 Then open a browser and go to "localhost:5000".
 
-NOTE: There's a bug where adding a few nodes and then leaving it for a while cause nodes to fail. This doesn't happen when running the nodes on their own so I think it's something to do with Popen not playing nice with the rest of the program. If I had to guess it would have something to do with multiple processes trying to print at the same time but that's a bit of a wild guess.
+### Visualizer demonstration
+[chord-visualizer-in-action.webm](https://github.com/sixChar/python-chord/assets/17972996/3dfd8823-04af-4540-a6d8-18b73d58b920)
+
+### Notes on the visualizer:
+- Nodes are represented by squares with their port number next to them and a line to their predecessor.
+- They are kept ordered based on which nodes are predecessors to others (i.e. by node id, which is a hash of their address).
+- Newly added nodes are given a yellow highlight until they have joined the network (some node has recognized them as that node's predecessor) and some time has passed. This is to help keep track of newly added nodes as the order tends to change once their part of the network. 
+
+
+NOTE: There's a bug where adding a few nodes and then leaving it for a while cause nodes to fail. This doesn't happen when running the nodes on their own so I think it's something to do with Popen not playing nice with the rest of the program. Since it only affects the visualizer when it's used in a weird way and seems difficult to fix I'm not going to bother.
+
